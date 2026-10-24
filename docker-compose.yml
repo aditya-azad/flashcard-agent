@@ -1,0 +1,15 @@
+services:
+  flashcard-agent:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # MCP endpoint: http://localhost:8000/mcp
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - anki-data:/data/anki
+
+volumes:
+  anki-data:

@@ -8,8 +8,10 @@ pass another deck, searches are always scoped to Default, and every
 note-level operation verifies that the notes belong to Default before acting.
 """
 
+import argparse
 import difflib
 import html
+import os
 import re
 
 from mcp.server.mcpserver import MCPServer
@@ -322,7 +324,28 @@ async def delete_notes(note_ids: list[int]) -> dict:
 
 
 def main() -> None:
-    mcp.run()
+    parser = argparse.ArgumentParser(description="Anki MCP server")
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help="serve over Streamable HTTP instead of stdio",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("FLASHCARD_AGENT_HOST", "127.0.0.1"),
+        help="HTTP bind host (HTTP mode only; default 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("FLASHCARD_AGENT_PORT", "8000")),
+        help="HTTP bind port (HTTP mode only; default 8000)",
+    )
+    args = parser.parse_args()
+    if args.http:
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":
