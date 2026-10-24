@@ -126,9 +126,9 @@ async def find_similar_notes(
     """
     await ensure_anki_running()
     note_ids = await anki_connect(
-        "findNotes", query=f'deck:"{DEFAULT_DECK}" and ({query})'
+        "findNotes", query=f'deck:"{DEFAULT_DECK}"'
     )
-    return sorted(set(note_ids))
+    infos = await anki_connect("notesInfo", notes=note_ids)
 
     norm_front = _normalized_text(front)
     norm_back = _normalized_text(back) if back else None
