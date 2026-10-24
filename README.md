@@ -13,7 +13,7 @@ mise install
 uv sync
 ```
 
-2. **Anki** must be running with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`).
+2. **Anki** with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`). The server lazy-starts Anki automatically on the first tool call if it isn't running, so it doesn't need to be open beforehand. Disable this with `ANKI_AUTO_START=0` (then Anki must be started manually) and adjust the startup wait via `ANKI_START_TIMEOUT` (seconds, default 30).
 
 3. **Install the MCP server** into your pi agent:
 
@@ -60,6 +60,7 @@ All tools operate exclusively on the **Default** deck and fail if a note belongs
 | `add_tags` | Add tags to one or more notes. |
 | `remove_tags` | Remove tags from one or more notes. |
 | `delete_notes` | Delete notes (and their cards). Irreversible. |
+
 
 ## Install the skills into your pi agent
 

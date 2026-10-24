@@ -10,7 +10,7 @@ note-level operation verifies that the notes belong to Default before acting.
 
 from mcp.server.mcpserver import MCPServer
 
-from .anki import AnkiConnectError, anki_connect, require_anki
+from .anki import AnkiConnectError, anki_connect, ensure_anki_running
 
 DEFAULT_DECK = "Default"
 
@@ -108,7 +108,7 @@ async def find_notes(query: str) -> list[int]:
     parentheses, or negations). Example queries: 'tag:dreamer', 'is:new',
     'front:RSSM'.
     """
-    await require_anki()
+    await ensure_anki_running()
     card_ids = await anki_connect("findCards", query=query)
     if not card_ids:
         return []
@@ -124,7 +124,7 @@ async def get_notes(note_ids: list[int]) -> list[dict]:
 
     Fails if any note belongs to a deck other than Default.
     """
-    await require_anki()
+    await ensure_anki_running()
     await _assert_notes_in_default(note_ids)
     infos = await anki_connect("notesInfo", notes=note_ids)
     return [
@@ -145,7 +145,7 @@ async def add_note(front: str, back: str, tags: list[str] | None = None) -> dict
     Tags is a list such as ['dreamer']. Front/Back are stored verbatim.
     Returns the new noteId.
     """
-    await require_anki()
+    await ensure_anki_running()
     result = await _add_notes(
         [{"front": front, "back": back, "tags": tags}], tags=None
     )
@@ -166,7 +166,7 @@ async def add_notes(
     tags: extra tags applied to every card (e.g. ['dreamer']).
     Returns {'added': [noteId|null, ...], 'duplicates': [indices]}.
     """
-    await require_anki()
+    await ensure_anki_running()
     return await _add_notes(cards, tags)
 
 
@@ -183,7 +183,7 @@ async def update_note(
     Only provided arguments are changed. When tags is given it replaces the
     whole tag set (use add_tags/remove_tags for incremental changes).
     """
-    await require_anki()
+    await ensure_anki_running()
     await _assert_notes_in_default([note_id])
     if front is None and back is None and tags is None:
         raise ValueError("Nothing to update: pass front, back, and/or tags.")
@@ -214,7 +214,7 @@ async def update_note(
 @mcp.tool()
 async def add_tags(note_ids: list[int], tags: list[str]) -> dict:
     """Add tags (e.g. ['dreamer']) to notes in the Default deck."""
-    await require_anki()
+    await ensure_anki_running()
     await _assert_notes_in_default(note_ids)
     await anki_connect("addTags", notes=note_ids, tags=" ".join(tags))
     return {"noteIds": note_ids, "tags": tags}
@@ -223,7 +223,7 @@ async def add_tags(note_ids: list[int], tags: list[str]) -> dict:
 @mcp.tool()
 async def remove_tags(note_ids: list[int], tags: list[str]) -> dict:
     """Remove tags from notes in the Default deck."""
-    await require_anki()
+    await ensure_anki_running()
     await _assert_notes_in_default(note_ids)
     await anki_connect("removeTags", notes=note_ids, tags=" ".join(tags))
     return {"noteIds": note_ids, "tags": tags}
@@ -235,7 +235,7 @@ async def delete_notes(note_ids: list[int]) -> dict:
 
     Fails if any note belongs to a deck other than Default.
     """
-    await require_anki()
+    await ensure_anki_running()
     await _assert_notes_in_default(note_ids)
     await anki_connect("deleteNotes", notes=note_ids)
     return {"deleted": note_ids}

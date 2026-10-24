@@ -4,8 +4,8 @@ description: >-
   Create high-quality Anki flashcards from source text (notes, articles,
   textbooks, transcripts) or from a topic description. Use whenever the user
   asks to make flashcards, memorization cards, or spaced-repetition cards.
-  Covers card-writing principles, Anki formatting conventions (MathJax,
-  bold), and storing cards in Anki via the flashcard-agent MCP server.
+  Covers card-writing principles, Anki formatting conventions, and storing
+  cards in Anki via the flashcard-agent MCP server.
 ---
 
 # Flashcard creation
@@ -17,6 +17,7 @@ Turn source text or a topic instruction into Anki flashcards, then store them wi
 - **Basic notes, Front/Back only.** Front is the prompt, Back is the answer. No cloze model.
 - **Write all card text in proper Anki formatting**: HTML lists (`<ul>`, `<ol>`, `<li>`), text decoration (`<b>`, `<i>`, `<u>`), and MathJax (`\(...\)` for inline math, `\[...\]` for display math) for all mathematical notation and everything else. Never leave the structure as plain text/markdown.
 - Use the server's tools only — never call AnkiConnect directly.
+- The server automatically starts Anki on the first tool call if it isn't running; the first call may take a few seconds while Anki launches.
 
 ## Tags
 
