@@ -11,7 +11,6 @@ note-level operation verifies that the notes belong to Default before acting.
 from mcp.server.mcpserver import MCPServer
 
 from .anki import AnkiConnectError, anki_connect, require_anki
-from .convert import to_anki
 
 DEFAULT_DECK = "Default"
 
@@ -23,17 +22,15 @@ mcp = MCPServer(
         "created there, searches are scoped there, and notes from any other "
         "deck cannot be read, updated, or deleted through this server. "
         "Agents should never work or access non-default decks. "
-        "Cards are Basic notes with Front/Back fields. Tags are free-form "
-        "labels such as 'dreamer'. You are not allowed to use AnkiConnect "
-        "directly. Always use the Anki convention for the mathjax, and other"
-        "text decoration"
+        "You are not allowed to use AnkiConnect directly. For guidance, use "
+        "the flashcard skills"
     ),
 )
 
 
 def _note_fields(front: str, back: str) -> dict[str, str]:
-    """Front/Back fields with markdown/LaTeX converted to Anki formatting."""
-    return {"Front": to_anki(front), "Back": to_anki(back)}
+    """Front/Back fields stored verbatim."""
+    return {"Front": front, "Back": back}
 
 
 async def _assert_notes_in_default(note_ids: list[int]) -> None:
@@ -145,9 +142,8 @@ async def get_notes(note_ids: list[int]) -> list[dict]:
 async def add_note(front: str, back: str, tags: list[str] | None = None) -> dict:
     """Add one card with Front/Back fields to the Default deck.
 
-    Tags is a list such as ['dreamer']. LaTeX ($...$, $$...$$) and
-    **bold** are converted to Anki MathJax/HTML formatting. Returns the
-    new noteId.
+    Tags is a list such as ['dreamer']. Front/Back are stored verbatim.
+    Returns the new noteId.
     """
     await require_anki()
     result = await _add_notes(
@@ -195,12 +191,12 @@ async def update_note(
         existing = (await anki_connect("notesInfo", notes=[note_id]))[0]
         fields = {
             "Front": (
-                to_anki(front)
+                front
                 if front is not None
                 else existing["fields"]["Front"]["value"]
             ),
             "Back": (
-                to_anki(back)
+                back
                 if back is not None
                 else existing["fields"]["Back"]["value"]
             ),
