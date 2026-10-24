@@ -1,25 +1,32 @@
 """Anki MCP server.
 
 Exposes solid Anki operations (via AnkiConnect) as MCP tools so agents can
-create, update, find, and delete notes in the Default deck and manage tags.
-"""
+create, update, find, and delete notes and manage tags.
 
-import re
-from pathlib import Path
+Deck policy: agents may ONLY operate on the Default deck. There is no way to
+pass another deck, searches are always scoped to Default, and every
+note-level operation verifies that the notes belong to Default before acting.
+"""
 
 from mcp.server.mcpserver import MCPServer
 
 from .anki import AnkiConnectError, anki_connect, require_anki
 from .convert import to_anki
 
+DEFAULT_DECK = "Default"
+
 mcp = MCPServer(
     "anki",
     instructions=(
         "Tools for working with a local Anki instance over AnkiConnect. "
-        "Cards are notes with Front/Back fields; notes go into the Default "
-        "deck unless another deck is given. Tags are free-form labels such "
-        "as 'dreamer'. Markdown flashcard files use a '## questions' section "
-        "with '### question' headings followed by the answer."
+        "All operations are restricted to the Default deck: cards are "
+        "created there, searches are scoped there, and notes from any other "
+        "deck cannot be read, updated, or deleted through this server. "
+        "Agents should never work or access non-default decks. "
+        "Cards are Basic notes with Front/Back fields. Tags are free-form "
+        "labels such as 'dreamer'. You are not allowed to use AnkiConnect "
+        "directly. Always use the Anki convention for the mathjax, and other"
+        "text decoration"
     ),
 )
 
@@ -29,12 +36,40 @@ def _note_fields(front: str, back: str) -> dict[str, str]:
     return {"Front": to_anki(front), "Back": to_anki(back)}
 
 
+async def _assert_notes_in_default(note_ids: list[int]) -> None:
+    """Raise unless every note belongs to the Default deck."""
+    infos = await anki_connect("notesInfo", notes=note_ids)
+    card_ids = [info["cards"][0] for info in infos]
+    cards = await anki_connect("cardsInfo", cards=card_ids)
+    offenders = {}
+    for note_id, card in zip(note_ids, cards, strict=True):
+        if card["deckName"] != DEFAULT_DECK:
+            offenders[note_id] = card["deckName"]
+    if offenders:
+        raise ValueError(
+            f"Only notes in the {DEFAULT_DECK} deck are accessible. "
+            f"These notes belong to other decks: {offenders}"
+        )
+
+
+async def _note_in_default(note_id: int) -> dict:
+    """Return deck info for one note after verifying it is in Default."""
+    await _assert_notes_in_default([note_id])
+    info = (await anki_connect("notesInfo", notes=[note_id]))[0]
+    return {
+        "noteId": info["noteId"],
+        "deck": DEFAULT_DECK,
+        "fields": {k: v["value"] for k, v in info["fields"].items()},
+        "tags": info["tags"],
+    }
+
+
 async def _add_notes(
-    cards: list[dict], deck: str, tags: list[str] | None
+    cards: list[dict], tags: list[str] | None
 ) -> dict:
     notes = [
         {
-            "deckName": deck,
+            "deckName": DEFAULT_DECK,
             "modelName": "Basic",
             "fields": _note_fields(card["front"], card["back"]),
             "tags": list({*(card.get("tags") or []), *(tags or [])}),
@@ -42,6 +77,7 @@ async def _add_notes(
         }
         for card in cards
     ]
+
     def _note_id(entry: object) -> int | None:
         # AnkiConnect versions return either a note id, null, or an
         # [id_or_null, error] pair per note.
@@ -66,97 +102,76 @@ async def _add_notes(
     return {"added": added, "duplicates": duplicate_indices}
 
 
-async def _note_info(note_id: int) -> dict:
-    result = await anki_connect("notesInfo", notes=[note_id])
-    info = result[0]
-    return {
-        "noteId": info["noteId"],
-        "deck": (await anki_connect("cardsInfo", cards=[info["cards"][0]]))[0][
-            "deckName"
-        ],
-        "fields": {k: v["value"] for k, v in info["fields"].items()},
-        "tags": info["tags"],
-    }
-
-
-@mcp.tool()
-async def list_decks() -> list[str]:
-    """List all deck names in the local Anki collection."""
-    await require_anki()
-    return await anki_connect("deckNames")
-
-
 @mcp.tool()
 async def find_notes(query: str) -> list[int]:
-    """Find note IDs with an Anki search query.
+    """Find note IDs in the Default deck with an Anki search query.
 
-    Examples: 'tag:dreamer', 'deck:Default is:new', 'front:RSSM',
-    'tag:dreamer deck:Default'.
+    The search is always scoped to the Default deck: matches from any other
+    deck are filtered out, and the query cannot bypass that (even with OR,
+    parentheses, or negations). Example queries: 'tag:dreamer', 'is:new',
+    'front:RSSM'.
     """
     await require_anki()
-    return await anki_connect("findNotes", query=query)
+    card_ids = await anki_connect("findCards", query=query)
+    if not card_ids:
+        return []
+    cards = await anki_connect("cardsInfo", cards=card_ids)
+    return sorted(
+        {card["note"] for card in cards if card["deckName"] == DEFAULT_DECK}
+    )
 
 
 @mcp.tool()
 async def get_notes(note_ids: list[int]) -> list[dict]:
-    """Get full info (deck, Front/Back fields, tags) for the given note IDs."""
+    """Get full info (Front/Back fields, tags) for notes in the Default deck.
+
+    Fails if any note belongs to a deck other than Default.
+    """
     await require_anki()
+    await _assert_notes_in_default(note_ids)
     infos = await anki_connect("notesInfo", notes=note_ids)
-    card_ids = [info["cards"][0] for info in infos]
-    cards = await anki_connect("cardsInfo", cards=card_ids)
     return [
         {
             "noteId": info["noteId"],
-            "deck": card["deckName"],
+            "deck": DEFAULT_DECK,
             "fields": {k: v["value"] for k, v in info["fields"].items()},
             "tags": info["tags"],
         }
-        for info, card in zip(infos, cards, strict=True)
+        for info in infos
     ]
 
 
 @mcp.tool()
-async def add_note(
-    front: str,
-    back: str,
-    tags: list[str] | None = None,
-    deck: str = "Default",
-) -> dict:
-    """Add one card with Front/Back fields to a deck (default: Default).
+async def add_note(front: str, back: str, tags: list[str] | None = None) -> dict:
+    """Add one card with Front/Back fields to the Default deck.
 
-    Tags is a list such as ['dreamer']. LaTeX ($...$, $$...$$) is rendered
-    by Anki with MathJax. Returns the new noteId.
+    Tags is a list such as ['dreamer']. LaTeX ($...$, $$...$$) and
+    **bold** are converted to Anki MathJax/HTML formatting. Returns the
+    new noteId.
     """
     await require_anki()
-    note = {
-        "deckName": deck,
-        "modelName": "Basic",
-        "fields": _note_fields(front, back),
-        "tags": tags or [],
-        "options": {"allowDuplicate": False},
-    }
-    result = await anki_connect("addNotes", notes=[note])
-    if result[0] is None:
-        raise AnkiConnectError(
-            f"Card not added (duplicate?): {result[1] or 'unknown reason'}"
-        )
-    return {"noteId": result[0], "deck": deck, "tags": tags or []}
+    result = await _add_notes(
+        [{"front": front, "back": back, "tags": tags}], tags=None
+    )
+    note_id = result["added"][0]
+    if note_id is None:
+        raise AnkiConnectError("Card not added (duplicate?).")
+    return {"noteId": note_id, "deck": DEFAULT_DECK, "tags": tags or []}
 
 
 @mcp.tool()
 async def add_notes(
     cards: list[dict],
-    deck: str = "Default",
     tags: list[str] | None = None,
 ) -> dict:
-    """Add many cards in one call to a deck (default: Default).
+    """Add many cards in one call to the Default deck.
 
     cards: list of {"front": str, "back": str, "tags"?: list[str]}.
     tags: extra tags applied to every card (e.g. ['dreamer']).
     Returns {'added': [noteId|null, ...], 'duplicates': [indices]}.
     """
     await require_anki()
-    return await _add_notes(cards, deck, tags)
+    return await _add_notes(cards, tags)
 
 
 @mcp.tool()
@@ -166,12 +181,14 @@ async def update_note(
     back: str | None = None,
     tags: list[str] | None = None,
 ) -> dict:
-    """Update the Front and/or Back fields and/or replace the tags of a note.
+    """Update the Front and/or Back fields and/or replace the tags of a
+    note in the Default deck.
 
     Only provided arguments are changed. When tags is given it replaces the
     whole tag set (use add_tags/remove_tags for incremental changes).
     """
     await require_anki()
+    await _assert_notes_in_default([note_id])
     if front is None and back is None and tags is None:
         raise ValueError("Nothing to update: pass front, back, and/or tags.")
     if front is not None or back is not None:
@@ -195,68 +212,37 @@ async def update_note(
         await anki_connect(
             "updateNoteTags", note=note_id, tags=" ".join(tags)
         )
-    return await _note_info(note_id)
+    return await _note_in_default(note_id)
 
 
 @mcp.tool()
 async def add_tags(note_ids: list[int], tags: list[str]) -> dict:
-    """Add tags (e.g. ['dreamer']) to the given notes."""
+    """Add tags (e.g. ['dreamer']) to notes in the Default deck."""
     await require_anki()
-    await anki_connect(
-        "addTags", notes=note_ids, tags=" ".join(tags)
-    )
+    await _assert_notes_in_default(note_ids)
+    await anki_connect("addTags", notes=note_ids, tags=" ".join(tags))
     return {"noteIds": note_ids, "tags": tags}
 
 
 @mcp.tool()
 async def remove_tags(note_ids: list[int], tags: list[str]) -> dict:
-    """Remove tags from the given notes."""
+    """Remove tags from notes in the Default deck."""
     await require_anki()
+    await _assert_notes_in_default(note_ids)
     await anki_connect("removeTags", notes=note_ids, tags=" ".join(tags))
     return {"noteIds": note_ids, "tags": tags}
 
 
 @mcp.tool()
 async def delete_notes(note_ids: list[int]) -> dict:
-    """Delete the given notes (and their cards) from Anki. Irreversible."""
+    """Delete notes (and their cards) from the Default deck. Irreversible.
+
+    Fails if any note belongs to a deck other than Default.
+    """
     await require_anki()
+    await _assert_notes_in_default(note_ids)
     await anki_connect("deleteNotes", notes=note_ids)
     return {"deleted": note_ids}
-
-
-@mcp.tool()
-async def add_flashcards_from_markdown(
-    path: str,
-    tags: list[str] | None = None,
-    deck: str = "Default",
-) -> dict:
-    """Create cards from a markdown flashcard file and add them to a deck.
-
-    Expects a '## questions' section with '### question' headings, each
-    followed by the answer (LaTeX $...$/$$...$$ supported). Tags are applied
-    to every created card, e.g. ['dreamer'].
-    Returns {'added': [...], 'duplicates': [...]}.
-    """
-    file = Path(path).expanduser()
-    text = file.read_text(encoding="utf-8")
-    if "## questions" not in text:
-        raise ValueError(f"No '## questions' section found in {file}")
-    section = text.split("## questions", 1)[1]
-    cards: list[dict] = []
-    for part in re.split(r"^### ", section, flags=re.MULTILINE):
-        part = part.strip()
-        if not part:
-            continue
-        if "\n\n" not in part:
-            raise ValueError(f"Question without answer in {file}: {part[:80]}")
-        question, answer = part.split("\n\n", 1)
-        cards.append(
-            {"front": question.strip(), "back": answer.strip(), "tags": tags}
-        )
-    if not cards:
-        raise ValueError(f"No '### question' entries found in {file}")
-    await require_anki()
-    return await _add_notes(cards, deck, tags)
 
 
 def main() -> None:
