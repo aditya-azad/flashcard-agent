@@ -8,6 +8,10 @@ pass another deck, searches are always scoped to Default, and every
 note-level operation verifies that the notes belong to Default before acting.
 """
 
+import difflib
+import html
+import re
+
 from mcp.server.mcpserver import MCPServer
 
 from .anki import AnkiConnectError, anki_connect, ensure_anki_running
@@ -99,6 +103,66 @@ async def _add_notes(
     return {"added": added, "duplicates": duplicate_indices}
 
 
+def _normalized_text(raw: str) -> str:
+    """Strip HTML/MathJax markup, lowercase, collapse whitespace."""
+    text = html.unescape(raw)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\\\[.*?\\\]|\\\((.*?)\\\)", " ", text, flags=re.DOTALL)
+    return " ".join(text.lower().split())
+
+
+@mcp.tool()
+async def find_similar_notes(
+    front: str,
+    back: str | None = None,
+    threshold: float = 0.6,
+) -> list[dict]:
+    """Find existing cards in the Default deck similar to a candidate card.
+
+    Uses a fuzzy text comparison. Threshold (0.0–1.0, default 0.6) is the
+    minimum combined similarity score. Returns matches sorted by score
+    (highest first), each with noteId, front, back, tags, and score.
+    Returns [] when nothing matches.
+    """
+    await ensure_anki_running()
+    note_ids = await anki_connect(
+        "findNotes", query=f'deck:"{DEFAULT_DECK}" and ({query})'
+    )
+    return sorted(set(note_ids))
+
+    norm_front = _normalized_text(front)
+    norm_back = _normalized_text(back) if back else None
+
+    matches: list[dict] = []
+    for info in infos:
+        fields = {k: v["value"] for k, v in info["fields"].items()}
+        existing_front = _normalized_text(fields["Front"])
+        existing_back = _normalized_text(fields["Back"])
+        front_score = difflib.SequenceMatcher(
+            None, norm_front, existing_front
+        ).ratio()
+        scores = [front_score]
+        if norm_back:
+            scores.append(
+                difflib.SequenceMatcher(
+                    None, norm_back, existing_back
+                ).ratio()
+            )
+        score = sum(scores) / len(scores)
+        if score >= threshold:
+            matches.append(
+                {
+                    "noteId": info["noteId"],
+                    "front": fields["Front"],
+                    "back": fields["Back"],
+                    "tags": info["tags"],
+                    "score": round(score, 3),
+                }
+            )
+    matches.sort(key=lambda m: m["score"], reverse=True)
+    return matches
+
+
 @mcp.tool()
 async def find_notes(query: str) -> list[int]:
     """Find note IDs in the Default deck with an Anki search query.
@@ -109,13 +173,10 @@ async def find_notes(query: str) -> list[int]:
     'front:RSSM'.
     """
     await ensure_anki_running()
-    card_ids = await anki_connect("findCards", query=query)
-    if not card_ids:
-        return []
-    cards = await anki_connect("cardsInfo", cards=card_ids)
-    return sorted(
-        {card["note"] for card in cards if card["deckName"] == DEFAULT_DECK}
+    note_ids = await anki_connect(
+        "findNotes", query=f'deck:"{DEFAULT_DECK}" and ({query})'
     )
+    return sorted(set(note_ids))
 
 
 @mcp.tool()

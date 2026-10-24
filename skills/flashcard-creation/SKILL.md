@@ -39,6 +39,7 @@ Turn source text or a topic instruction into Anki flashcards, then store them wi
 
 1. Read the source. If scope (sections, depth) is ambiguous, confirm first.
 2. Draft cards following the principles above.
-3. Store with MCP tool `add_notes`, passing `[{"front": ..., "back": ..., "tags": [...]}]` (plus a shared `tags` list if the user provided one). Use `add_note` only for a single card.
-4. Report: number of cards added, any entries in the returned `duplicates` list, and the tags used. Duplicates are skipped (`allowDuplicate: false`); offer `update_note` instead of force-adding.
-5. For edits: `find_notes` (e.g. `tag:biology`) + `get_notes` to locate, then `update_note`, `add_tags`, `remove_tags`, or `delete_notes`.
+3. **Check for existing similar cards before adding.** Before storing, run the MCP tool `find_similar_notes` with the drafted Front (and Back as `back`) for each card — or batch your checks efficiently by iterating over the drafted cards. It returns existing Default-deck cards with a similarity `score` above the threshold. Skip any card whose match has a high score (roughly ≥ 0.6) — it's a duplicate or trivially rephrased version of an existing card — and tell the user which were skipped and why. Only genuinely new cards go to step 4.
+4. Store with MCP tool `add_notes`, passing `[{"front": ..., "back": ..., "tags": [...]}]` (plus a shared `tags` list if the user provided one). Use `add_note` only for a single card.
+5. Report: number of cards added, any entries in the returned `duplicates` list, any cards skipped in step 3, and the tags used. Duplicates are skipped (`allowDuplicate: false`); offer `update_note` instead of force-adding.
+6. For edits: `find_notes` (e.g. `tag:biology`) + `get_notes` to locate, then `update_note`, `add_tags`, `remove_tags`, or `delete_notes`.

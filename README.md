@@ -52,6 +52,7 @@ All tools operate exclusively on the **Default** deck and fail if a note belongs
 
 | Tool | Description |
 |---|---|
+| `find_similar_notes` | Find existing cards in the Default deck similar to a candidate card.|
 | `find_notes` | Find note IDs in the Default deck using an Anki search query (e.g. `tag:dreamer`, `is:new`). |
 | `get_notes` | Get full info (Front/Back fields, tags) for a list of note IDs. |
 | `add_note` | Add one card with Front/Back fields and optional tags. Returns the new note ID. |
