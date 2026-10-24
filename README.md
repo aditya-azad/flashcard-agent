@@ -13,7 +13,7 @@ mise install
 uv sync
 ```
 
-2. **Anki** with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`). The server lazy-starts Anki automatically on the first tool call if it isn't running, so it doesn't need to be open beforehand. Disable this with `ANKI_AUTO_START=0` (then Anki must be started manually) and adjust the startup wait via `ANKI_START_TIMEOUT` (seconds, default 30).
+2. **Anki** with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`). The server lazy-starts Anki automatically on the first tool call if it isn't running, so it doesn't need to be open beforehand; the startup wait is adjustable via `ANKI_START_TIMEOUT` (seconds, default 30).
 
 3. **Install the MCP server** into your pi agent:
 
@@ -55,6 +55,7 @@ All tools operate exclusively on the **Default** deck and fail if a note belongs
 | `find_similar_notes` | Find existing cards in the Default deck similar to a candidate card.|
 | `find_notes` | Find note IDs in the Default deck using an Anki search query (e.g. `tag:dreamer`, `is:new`). |
 | `get_notes` | Get full info (Front/Back fields, tags) for a list of note IDs. |
+| `get_all_tags` | Get all tags used by notes in the Default deck, sorted. |
 | `add_note` | Add one card with Front/Back fields and optional tags. Returns the new note ID. |
 | `add_notes` | Add many cards in one call; supports shared tags and reports duplicates. |
 | `update_note` | Update the Front and/or Back fields and/or replace the tags of a note. |

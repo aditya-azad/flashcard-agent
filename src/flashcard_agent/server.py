@@ -200,6 +200,25 @@ async def get_notes(note_ids: list[int]) -> list[dict]:
 
 
 @mcp.tool()
+async def get_all_tags() -> list[str]:
+    """Get all tags used by notes in the Default deck, sorted.
+
+    Returns an empty list when the deck has no notes or no tags.
+    """
+    await ensure_anki_running()
+    note_ids = await anki_connect(
+        "findNotes", query=f'deck:"{DEFAULT_DECK}"'
+    )
+    if not note_ids:
+        return []
+    infos = await anki_connect("notesInfo", notes=note_ids)
+    tags: set[str] = set()
+    for info in infos:
+        tags.update(info["tags"])
+    return sorted(tags)
+
+
+@mcp.tool()
 async def add_note(front: str, back: str, tags: list[str] | None = None) -> dict:
     """Add one card with Front/Back fields to the Default deck.
 
