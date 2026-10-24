@@ -6,15 +6,60 @@ Card-writing guidance (how to turn text into good flashcards, formatting convent
 
 ## Setup
 
-1. **Anki** must be running with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`).
+1. Clone this repository and run
 
-2. **Run the MCP server** from this repository:
+```sh
+mise install
+uv sync
+```
+
+2. **Anki** must be running with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on listening on `http://localhost:8765` (configurable via `ANKI_CONNECT_URL` / `ANKI_CONNECT_TIMEOUT`).
+
+3. **Install the MCP server** into your pi agent:
+
+```sh
+pi mcp add -l flashcards -- uv run --directory "$(pwd)" flashcard-agent
+```
+
+This adds a project-level (`-l`) stdio server entry that runs the server via uv, so no separate manual launch is needed. Verify the connection with:
+
+```sh
+pi mcp list
+```
+
+Alternatively, add it manually to `.pi/mcp.json` (project) or `~/.pi/agent/mcp.json` (user):
+
+```json
+{
+  "mcpServers": {
+    "flashcards": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/flashcard-agent", "flashcard-agent"]
+    }
+  }
+}
+```
+
+You can also run the server directly from this repository to test it:
 
 ```sh
 uv run flashcard-agent
 ```
 
-Then register it with pi's MCP gateway (see pi docs on MCP servers) or add it to your agent's MCP configuration as a stdio server running the command above.
+## Available tools
+
+All tools operate exclusively on the **Default** deck and fail if a note belongs to any other deck.
+
+| Tool | Description |
+|---|---|
+| `find_notes` | Find note IDs in the Default deck using an Anki search query (e.g. `tag:dreamer`, `is:new`). |
+| `get_notes` | Get full info (Front/Back fields, tags) for a list of note IDs. |
+| `add_note` | Add one card with Front/Back fields and optional tags. Returns the new note ID. |
+| `add_notes` | Add many cards in one call; supports shared tags and reports duplicates. |
+| `update_note` | Update the Front and/or Back fields and/or replace the tags of a note. |
+| `add_tags` | Add tags to one or more notes. |
+| `remove_tags` | Remove tags from one or more notes. |
+| `delete_notes` | Delete notes (and their cards). Irreversible. |
 
 ## Install the skills into your pi agent
 
