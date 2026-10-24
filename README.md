@@ -1,10 +1,10 @@
-# Anki MCP
+# Flashcard Agent
 
 A local MCP server that exposes Anki operations (via [AnkiConnect](https://foosoft.net/projects/anki-connect/)) as tools for coding agents.
 
 ## Automatic formatting
 
-Every Front/Back the server writes to Anki is converted first (`anki_mcp.convert.to_anki`, idempotent):
+Every Front/Back the server writes to Anki is converted first (`flashcard_agent.convert.to_anki`, idempotent):
 
 - `$$...$$` display math → `\[...\]` (Anki MathJax display)
 - `$...$` inline math → `\(...\)` (Anki MathJax inline)
@@ -17,7 +17,7 @@ This applies to `add_note`, `add_notes`, and `update_note`. Cards already using 
 ```bash
 mise use python@3.14   # or: mise install (reads mise.toml)
 uv sync
-uv run anki-mcp        # starts the stdio MCP server
+uv run flashcard-agent  # starts the stdio MCP server
 ```
 
 ## Tools
@@ -39,7 +39,7 @@ uv run anki-mcp        # starts the stdio MCP server
 Pi (user-level, so every session can use it):
 
 ```bash
-pi mcp add anki -- uv run --directory ~/code/anki-mcp anki-mcp
+pi mcp add flashcard-agent -- uv run --directory ~/code/flashcard-agent flashcard-agent
 pi mcp list
 ```
 
@@ -48,9 +48,9 @@ Any other MCP client (JSON format):
 ```json
 {
   "mcpServers": {
-    "anki": {
+    "flashcard-agent": {
       "command": "uv",
-      "args": ["run", "--directory", "/home/<user>/code/anki-mcp", "anki-mcp"]
+      "args": ["run", "--directory", "/home/<user>/code/flashcard-agent", "flashcard-agent"]
     }
   }
 }

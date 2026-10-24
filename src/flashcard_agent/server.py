@@ -16,7 +16,7 @@ from .convert import to_anki
 DEFAULT_DECK = "Default"
 
 mcp = MCPServer(
-    "anki",
+    "flashcard-agent",
     instructions=(
         "Tools for working with a local Anki instance over AnkiConnect. "
         "All operations are restricted to the Default deck: cards are "
