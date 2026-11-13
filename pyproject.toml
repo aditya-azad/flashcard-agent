@@ -25,5 +25,4 @@ dev = [
     "ruff>=0.17.2",
 ]
 
-[tool.ruff]
-extend-exclude = ["docker/anki_addons"]
+
